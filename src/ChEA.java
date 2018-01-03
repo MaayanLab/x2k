@@ -420,7 +420,7 @@ public class ChEA {
 			int counter = 1;
 			
 			for (TranscriptionFactor tf : _tfs) {
-				if(_sort.equals("combined_score")){
+				if(_sort.equals("combined_score") || _sort.equals("rank")){
 					tf.computeScore(counter, false);
 				}
 				else if(_sort.equals("oddsratio")){
@@ -429,7 +429,7 @@ public class ChEA {
 				counter++;
 			}
 			
-			if (_sort.equals("combined_score")) {
+			if (_sort.equals("combined_score") || _sort.equals("oddsratio")) {
 				// Sort by combined score
 				Collections.sort(_tfs, new Comparator<TranscriptionFactor>() {
 					@Override

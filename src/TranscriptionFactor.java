@@ -202,7 +202,7 @@ public class TranscriptionFactor implements Comparable<Object> {
 			combinedScore = Math.log(pvalue) * zscore;
 		}
 		else{
-			combinedScore = Math.abs(Math.log(pvalue) * oddsRatio);
+			combinedScore = Math.log(pvalue) * oddsRatio;
 		}
 	}
 }

@@ -357,7 +357,7 @@ public class KEAfast {
 				if(_sort.equals("oddsratio")){
 					tf.computeScore(counter, true);
 				}
-				else if(_sort.equals("combined_score")){
+				else if(_sort.equals("combined_score") || _sort.equals("rank")){
 					tf.computeScore(counter, false);
 				}
 				
