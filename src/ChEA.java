@@ -353,6 +353,139 @@ public class ChEA {
 		_transcriptionFactors.addAll(tfMap.values());
 	}
 	
+	private String computeEnrichment2(HashMap<String, HashSet<String>> _genes, String _species, String _sort, LinkedList<TranscriptionFactor> _tfs, HashSet<String> _geneBgSet, HashSet<String> _geneBackground, int _tfLength) {
+		
+		// filter genes from input list that are not associated with an upstream transcription factor
+		String output = "";
+		int counterk = 0;
+		
+		HashSet<String> genelist = new HashSet<String>(_geneBackground);
+		genelist.retainAll(_geneBgSet);
+		
+		HashMap<String, HashSet<String>> tftemp = new HashMap<String, HashSet<String>>();
+		for(TranscriptionFactor tf : _tfs){
+			HashSet<String> tfGenes = new HashSet<String>(tf.getTargets());
+			tfGenes.retainAll(genelist);
+			tftemp.put(tf.getSimpleName(), tfGenes);
+		}
+		
+		//System.out.println("Background: "+genelist.size());
+		
+		for(String key : _genes.keySet()){
+			counterk++;
+			HashSet<String> geneInputSet = new HashSet<String>(_genes.get(key));
+			geneInputSet.retainAll(genelist);
+			
+			long time = System.currentTimeMillis();
+			double maxOver = 0;
+			double maxOverlap = 0;
+			double pval = 1;
+			
+			for(TranscriptionFactor tf : _tfs){
+				// Target input genes is the intersection of target background genes and input genes
+				HashSet<String> overlapGenes = new HashSet<String>(geneInputSet);
+				overlapGenes.retainAll(tftemp.get(tf.getSimpleName()));
+				
+				int numTF = tftemp.get(tf.getSimpleName()).size();
+				int totalBgGenes = genelist.size();
+				int totalInputGenes = geneInputSet.size();
+				int numOverlap = overlapGenes.size();
+				double oddsRatio = (numOverlap*1.0/(totalInputGenes - numOverlap))/(numTF*1.0/(totalBgGenes - numTF));
+				
+				if (numOverlap > 0) {
+					if(oddsRatio > maxOver) {
+						maxOver = oddsRatio;
+						maxOverlap = numOverlap;
+					}
+					//System.out.println(oddsRatio+" - "+numOverlap+" - "+(totalInputGenes - numOverlap)+" - "+numTF+" - "+(totalBgGenes - numTF));
+					double pvalue = fisherTest.getRightTailedP(numOverlap,(totalInputGenes - numOverlap), numTF, (totalBgGenes - numTF));
+					pval = Math.min(pvalue, pval);
+					tf.setEnrichedTargets(overlapGenes);
+					tf.setFractionOfTargetsInInput(numOverlap*1.0/totalInputGenes);
+					tf.setFractionOfTargetsInBackground(numTF*1.0/totalBgGenes);
+					tf.setPValue(pvalue);
+					tf.setOddsRatio(oddsRatio);
+					tf.setBackgroundIntersect(numTF);
+				}
+				else {
+					tf.setPValue(1);
+					tf.setEnrichedTargets(new HashSet<String>());
+				}
+			}
+			
+			// First, sort by p-value
+			Collections.sort(_tfs);
+			
+			// Count current rank and compute z-score
+			int counter = 1;
+			
+			for (TranscriptionFactor tf : _tfs) {
+				if(_sort.equals("combined_score") || _sort.equals("rank")){
+					tf.computeScore(counter, false);
+				}
+				else if(_sort.equals("oddsratio")){
+					tf.computeScore(counter, true);
+				}
+				counter++;
+			}
+			
+			if (_sort.equals("combined_score") || _sort.equals("oddsratio")) {
+				// Sort by combined score
+				Collections.sort(_tfs, new Comparator<TranscriptionFactor>() {
+					@Override
+					public int compare(TranscriptionFactor o1, TranscriptionFactor o2) {
+						if (o1.getCombinedScore() < o2.getCombinedScore())				
+							return 1;
+						else if (o1.getCombinedScore() > o2.getCombinedScore())
+							return -1;
+						else
+							return 0;
+					}
+				});
+			}
+			else if (_sort.equals("rank")) {
+				// Sort by z-score
+				Collections.sort(_tfs, new Comparator<TranscriptionFactor>() {
+					@Override
+					public int compare(TranscriptionFactor o1, TranscriptionFactor o2) {
+						if (o1.getZScore() > o2.getZScore())				
+							return 1;
+						else if (o1.getZScore() < o2.getZScore())
+							return -1;
+						else
+							return 0;
+					}
+				});
+			}
+			
+			StringBuffer sb = new StringBuffer();
+			sb.append(key).append(",");
+			int buff = 0;
+			for(int i=0; i<Math.min(_tfs.size(), _tfLength+buff); i++){
+				String tfname = _tfs.get(i).getSimpleName();
+				//String tfp = ""+_tfs.get(i).getPValue();
+				//String tfodds = ""+_tfs.get(i).getOddsRatio();
+				if(_tfs.get(i).getPValue() < 0.05){
+					//sb.append(tfname).append(",").append(tfp).append(",").append(tfodds).append(";");
+					sb.append(tfname).append(",");
+				}
+				else{
+					buff++;
+				}
+			}
+			
+			System.out.println(_tfs.size()+"-"+buff);
+			
+			output += sb.toString()+"\n";
+			System.out.println(counterk+" - "+key+" - "+geneInputSet.size()+" - "+pval+" - "+maxOver+" - "+maxOverlap+" - "+(System.currentTimeMillis() - time));
+		}
+		
+		output = output.replace(",\n", "\n");
+		//System.out.println(output);
+		
+		return output;
+	}
+	
 	private String computeEnrichment(HashMap<String, HashSet<String>> _genes, String _species, String _sort, LinkedList<TranscriptionFactor> _tfs, HashSet<String> _geneBgSet, HashSet<String> _geneBackground, int _tfLength) {
 		
 		// filter genes from input list that are not associated with an upstream transcription factor
