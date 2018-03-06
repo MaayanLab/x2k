@@ -31,7 +31,7 @@ public class FastGenes2Networks {
 		FastGenes2Networks fg2n = new FastGenes2Networks();
 		
 		args = new String[1];
-		args[0] = "TP53,SOX2,POU5F1,TEAD4,ESRRB,CREM,E2F1,STAT3,PAX6,SETDB1,NCOA3";
+		args[0] = "TP53,SOX2,POU5F1,TEAD4,ESRRB,CREM,E2F1,STAT3,PAX6,SETDB1,NCOA3,NR1H4,SMARCC2,DAXX,CSNK2A2";
 		
 		String[] geneList = args[0].split(",");
 		
@@ -44,11 +44,11 @@ public class FastGenes2Networks {
 		
 		//HashMap<String, HashSet<String>> tt = new HashMap<String, HashSet<String>>();
 		//tt.put("test-list", new HashSet<String>(Arrays.asList(geneList)));
-		//String testres = fg2n.runG2N(networkStrings, tt, 5, 1, 100);
+		//String testres = fg2n.runG2N(networkStrings, tt, 2, 1, 100, 100);
 		//System.out.println(testres.split(",").length);
 	}
 	
-	public String runG2N(String[] _networkString, HashMap<String, HashSet<String>> _genes, int _pathLength, int _minSize, int _maxSize) {
+	public String runG2N(String[] _networkString, HashMap<String, HashSet<String>> _genes, int _pathLength, int _minSize, int _maxSize, int _returnSize) {
 		
 		HashMap<String, HashSet<String>> combinedNetwork = new HashMap<String, HashSet<String>>();
 		
@@ -73,27 +73,36 @@ public class FastGenes2Networks {
 			
 			HashSet<String> inGenes = new HashSet<String>(_genes.get(key));
 			inGenes.retainAll(combinedNetwork.keySet());
-			HashMap<String, Integer> geneCounts = new HashMap<String, Integer>();
+			HashMap<String, Double> geneCounts = new HashMap<String, Double>();
 			
 			HashSet<String>[] geneNeighborhoods = new HashSet[_pathLength];
 			geneNeighborhoods[0] = new HashSet<String>(inGenes);
-			
-			for(String seed : inGenes) {
+
+			for(String okgene : inGenes) {
 				HashSet<String> expandGenes = new HashSet<String>();
-				expandGenes.add(seed);
+				expandGenes.add(okgene);
 				for(int j=0; j<_pathLength; j++){
 					
 					String[] newgenes = expandGenes.toArray(new String[0]);
 					for(String gene : newgenes) {
 						if(combinedNetwork.get(gene).size() > _minSize && combinedNetwork.get(gene).size() < _maxSize) {
 							expandGenes.addAll(combinedNetwork.get(gene));
+							
+//							for(String geneg : combinedNetwork.get(gene)) {
+//								if(!geneCounts.containsKey(geneg)) {
+//									geneCounts.put(geneg, 1);
+//								}
+//								else {
+//									geneCounts.put(geneg, geneCounts.get(geneg)+1);
+//								}
+//							}
 						}
 					}
 				}
 				
 				for(String gene : expandGenes) {
 					if(!geneCounts.containsKey(gene)) {
-						geneCounts.put(gene, 1);
+						geneCounts.put(gene, 1.0);
 					}
 					else {
 						geneCounts.put(gene, geneCounts.get(gene)+1);
@@ -102,24 +111,45 @@ public class FastGenes2Networks {
 			}
 			
 			HashMap<String, Double> geneOdds = new HashMap<String, Double>();
-			ValueComparator bvc = new ValueComparator(geneOdds);
+			
+			ValueComparator bvc = new ValueComparator(geneCounts);
 	        TreeMap<String, Double> sorted_map = new TreeMap<String, Double>(bvc);
+			sorted_map.putAll(geneCounts);
+			String[] keys = sorted_map.descendingKeySet().toArray(new String[0]);
+			System.out.println(keys.length+" - " +geneCounts.get(keys[keys.length - _returnSize]));
 			
 			for(String gene : geneCounts.keySet()) {	
-				//geneOdds.put(gene, geneCounts.get(gene)*1.0/combinedNetwork.get(gene).size());
-				geneOdds.put(gene, geneCounts.get(gene)*1.0);
+				if(geneCounts.get(gene) >= geneCounts.get(keys[keys.length - _returnSize])-3) {
+					HashSet<String> expandGenes = new HashSet<String>();
+					expandGenes.add(gene);
+					for(int j=0; j<_pathLength; j++){
+						String[] newgenes = expandGenes.toArray(new String[0]);
+						for(String ngene : newgenes) {
+							//if(combinedNetwork.get(ngene).size() > _minSize && combinedNetwork.get(ngene).size() < _maxSize) {
+							expandGenes.addAll(combinedNetwork.get(ngene));
+							//}
+						}
+					}
+					//geneOdds.put(gene, geneCounts.get(gene)*1.0/combinedNetwork.get(gene).size());
+					geneOdds.put(gene, geneCounts.get(gene)*1.0/expandGenes.size());
+					//System.out.println(gene+" - e:"+expandGenes.size()+" - c:"+geneCounts.get(gene));
+				}
+				else {
+					geneOdds.put(gene, 0.0);
+				}
 			}
 			
+			bvc = new ValueComparator(geneOdds);
+			sorted_map = new TreeMap<String, Double>(bvc);
 			sorted_map.putAll(geneOdds);
+			keys = sorted_map.descendingKeySet().toArray(new String[0]);
 			
-			String[] keys = sorted_map.descendingKeySet().toArray(new String[0]);
-			
-//			for(int i=keys.length-1; i > Math.max(keys.length-20, 0); i--) {
-//				System.out.println(keys[i] + " - " + geneOdds.get(keys[i]));
-//			}
+			for(int i=keys.length-1; i > Math.max(keys.length-_returnSize, 0); i--) {
+				System.out.println(keys[i] + " - "+ geneCounts.get(keys[i]) + " - " + geneOdds.get(keys[i])+" - "+combinedNetwork.get(keys[i]).size());
+			}
 			
 			String templine = key;
-			for(int i=keys.length-1; i > Math.max(keys.length-20, 0); i--) {
+			for(int i=keys.length-1; i > Math.max(keys.length-_returnSize, 0); i--) {
 				templine += ","+keys[i];
 			}
 			
@@ -286,9 +316,10 @@ public class FastGenes2Networks {
 						pathLength = Integer.parseInt(sp[2]);
 						minLength = Integer.parseInt(sp[3]);
 						maxLength = Integer.parseInt(sp[4]);
+						finalSize = Integer.parseInt(sp[4]);
 					}
 					else if(outputLine.startsWith("messageComplete")) {
-						String out = runG2N(networkStrings, geneLists, pathLength, minLength, maxLength);
+						String out = runG2N(networkStrings, geneLists, pathLength, minLength, maxLength, finalSize);
 						outs.println(out+"messageComplete");
 					}
 					else if(outputLine.length() > 4){
