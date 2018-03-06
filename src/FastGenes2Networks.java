@@ -39,13 +39,13 @@ public class FastGenes2Networks {
 		
 		fg2n.initialize(networkStrings);
 		
-		// System.out.println("G2N server running at port: "+port);
-		//fg2n.startMultiServer();
+		System.out.println("G2N server running at port: "+port);
+		fg2n.startMultiServer();
 		
-		HashMap<String, HashSet<String>> tt = new HashMap<String, HashSet<String>>();
-		tt.put("test-list", new HashSet<String>(Arrays.asList(geneList)));
-		String testres = fg2n.runG2N(networkStrings, tt, 5, 1, 100);
-		System.out.println(testres.split(",").length);
+		//HashMap<String, HashSet<String>> tt = new HashMap<String, HashSet<String>>();
+		//tt.put("test-list", new HashSet<String>(Arrays.asList(geneList)));
+		//String testres = fg2n.runG2N(networkStrings, tt, 5, 1, 100);
+		//System.out.println(testres.split(",").length);
 	}
 	
 	public String runG2N(String[] _networkString, HashMap<String, HashSet<String>> _genes, int _pathLength, int _minSize, int _maxSize) {
