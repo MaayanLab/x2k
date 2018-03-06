@@ -7,25 +7,31 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class FastGenes2Networks {
-
+	
 	HashMap<String, String> networkList = new HashMap<String, String>();
 	HashMap<String, HashMap<String, HashSet<String>>> networks;
 	HashMap<String, HashSet<String>> allGenelists = new HashMap<String, HashSet<String>>();
+	
 	String[] inputGenes = null;
 	int pathLength = 1;
-	int maxSize = 100;
+	int finalSize = 100;
+	int maxSize = 20;
+	int minSize = 3;
+	
 	static int port = 5001;
 	
 	public static void main(String[] args) {
 		FastGenes2Networks fg2n = new FastGenes2Networks();
 		
 		args = new String[1];
-		args[0] = "TP53,SOX2,POU5F1,TEAD4,ESRRB,CREM,E2F1,STAT3";
+		args[0] = "TP53,SOX2,POU5F1,TEAD4,ESRRB,CREM,E2F1,STAT3,PAX6,SETDB1,NCOA3";
 		
 		String[] geneList = args[0].split(",");
 		
@@ -33,15 +39,16 @@ public class FastGenes2Networks {
 		
 		fg2n.initialize(networkStrings);
 		
-		System.out.println("G2N server running at port: "+port);
-		fg2n.startMultiServer();
+		// System.out.println("G2N server running at port: "+port);
+		//fg2n.startMultiServer();
 		
-		
-		//HashSet<String> geneSet = fg2n.run(networkStrings, geneList, 1);
-		//System.out.println(geneSet.size());
+		HashMap<String, HashSet<String>> tt = new HashMap<String, HashSet<String>>();
+		tt.put("test-list", new HashSet<String>(Arrays.asList(geneList)));
+		String testres = fg2n.runG2N(networkStrings, tt, 5, 1, 100);
+		System.out.println(testres.split(",").length);
 	}
 	
-	public String runG2N(String[] _networkString, HashMap<String, HashSet<String>> _genes, int _pathLength) {
+	public String runG2N(String[] _networkString, HashMap<String, HashSet<String>> _genes, int _pathLength, int _minSize, int _maxSize) {
 		
 		HashMap<String, HashSet<String>> combinedNetwork = new HashMap<String, HashSet<String>>();
 		
@@ -62,28 +69,90 @@ public class FastGenes2Networks {
 		
 		for(String key : _genes.keySet()) {
 			
+			System.out.println(key);
+			
 			HashSet<String> inGenes = new HashSet<String>(_genes.get(key));
 			inGenes.retainAll(combinedNetwork.keySet());
+			HashMap<String, Integer> geneCounts = new HashMap<String, Integer>();
 			
-			HashSet<String> geneNeighborhood = new HashSet<String>(inGenes);
-			for(int j=0; j<_pathLength; j++){
-				String[] genes = geneNeighborhood.toArray(new String[0]);
-				for(String gene : genes){
-					geneNeighborhood.addAll(combinedNetwork.get(gene));
+			HashSet<String>[] geneNeighborhoods = new HashSet[_pathLength];
+			geneNeighborhoods[0] = new HashSet<String>(inGenes);
+			
+			for(String seed : inGenes) {
+				HashSet<String> expandGenes = new HashSet<String>();
+				expandGenes.add(seed);
+				for(int j=0; j<_pathLength; j++){
+					
+					String[] newgenes = expandGenes.toArray(new String[0]);
+					for(String gene : newgenes) {
+						if(combinedNetwork.get(gene).size() > _minSize && combinedNetwork.get(gene).size() < _maxSize) {
+							expandGenes.addAll(combinedNetwork.get(gene));
+						}
+					}
+				}
+				
+				for(String gene : expandGenes) {
+					if(!geneCounts.containsKey(gene)) {
+						geneCounts.put(gene, 1);
+					}
+					else {
+						geneCounts.put(gene, geneCounts.get(gene)+1);
+					}
 				}
 			}
 			
-			String[] genearr = geneNeighborhood.toArray(new String[0]);
-			Arrays.sort(genearr);
+			HashMap<String, Double> geneOdds = new HashMap<String, Double>();
+			ValueComparator bvc = new ValueComparator(geneOdds);
+	        TreeMap<String, Double> sorted_map = new TreeMap<String, Double>(bvc);
+			
+			for(String gene : geneCounts.keySet()) {	
+				//geneOdds.put(gene, geneCounts.get(gene)*1.0/combinedNetwork.get(gene).size());
+				geneOdds.put(gene, geneCounts.get(gene)*1.0);
+			}
+			
+			sorted_map.putAll(geneOdds);
+			
+			String[] keys = sorted_map.descendingKeySet().toArray(new String[0]);
+			
+//			for(int i=keys.length-1; i > Math.max(keys.length-20, 0); i--) {
+//				System.out.println(keys[i] + " - " + geneOdds.get(keys[i]));
+//			}
 			
 			String templine = key;
-			for(int i=0; i<genearr.length; i++) {
-				templine += ","+genearr[i];
+			for(int i=keys.length-1; i > Math.max(keys.length-20, 0); i--) {
+				templine += ","+keys[i];
 			}
+			
 			output += templine+"\n";
 		}
 		//System.out.println("g2n: "+output);
 		return output;
+	}
+	
+	class ValueComparator implements Comparator<String> {
+	    Map<String, Double> base;
+
+	    public ValueComparator(Map<String, Double> base) {
+	        this.base = base;
+	    }
+
+	    public int compare(String a, String b) {
+	        if (base.get(a) >= base.get(b)) {
+	            return -1;
+	        } else {
+	            return 1;
+	        }
+	    }
+	}
+	
+	private double computeBinomialProportion(int bgNodeLinks, int bgTotalLinks, int subnetNodeLinks, int subnetTotalLinks) {
+		
+		double nodeProportion = ((double) subnetNodeLinks) / bgNodeLinks;
+		double linkProportion = ((double) subnetTotalLinks) / bgTotalLinks;
+		double otherLinkProportion = 1 - linkProportion;
+		double z = (nodeProportion - linkProportion) / Math.sqrt(linkProportion * otherLinkProportion / bgNodeLinks);
+		
+		return z;
 	}
 	
 	public void  initialize(String[] _networkStrings){
@@ -195,6 +264,8 @@ public class FastGenes2Networks {
 	    public void run() {
 	    		
 	    		int pathLength = 1;
+	    		int maxLength = 100;
+	    		int minLength = 1;
 	    		String[] networkStrings = new String[0];
 	    		
 	        try {
@@ -213,9 +284,11 @@ public class FastGenes2Networks {
 						String[] sp = outputLine.trim().split(";");
 						networkStrings = sp[1].split(",");
 						pathLength = Integer.parseInt(sp[2]);
+						minLength = Integer.parseInt(sp[3]);
+						maxLength = Integer.parseInt(sp[4]);
 					}
 					else if(outputLine.startsWith("messageComplete")) {
-						String out = runG2N(networkStrings, geneLists, pathLength);
+						String out = runG2N(networkStrings, geneLists, pathLength, minLength, maxLength);
 						outs.println(out+"messageComplete");
 					}
 					else if(outputLine.length() > 4){
