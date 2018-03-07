@@ -44,7 +44,8 @@ public class FastGenes2Networks {
 		
 		//HashMap<String, HashSet<String>> tt = new HashMap<String, HashSet<String>>();
 		//tt.put("test-list", new HashSet<String>(Arrays.asList(geneList)));
-		//String testres = fg2n.runG2N(networkStrings, tt, 2, 1, 100, 100);
+		//String testres = fg2n.runG2N(networkStrings, tt, 1, 1, 200, 500);
+
 		//System.out.println(testres.split(",").length);
 	}
 	
@@ -116,10 +117,10 @@ public class FastGenes2Networks {
 	        TreeMap<String, Double> sorted_map = new TreeMap<String, Double>(bvc);
 			sorted_map.putAll(geneCounts);
 			String[] keys = sorted_map.descendingKeySet().toArray(new String[0]);
-			System.out.println(keys.length+" - " +geneCounts.get(keys[keys.length - _returnSize]));
+			//System.out.println(keys.length+" - " +geneCounts.get(keys[keys.length - _returnSize]));
 			
 			for(String gene : geneCounts.keySet()) {	
-				if(geneCounts.get(gene) >= geneCounts.get(keys[keys.length - _returnSize])-3) {
+				if(geneCounts.get(gene) >= geneCounts.get(keys[Math.max(0, keys.length - _returnSize)])-3) {
 					HashSet<String> expandGenes = new HashSet<String>();
 					expandGenes.add(gene);
 					for(int j=0; j<_pathLength; j++){
